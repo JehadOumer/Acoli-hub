@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="./shared/static_api.js"></script>
+
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ACoLi Lab Hub</title>
+<link rel="stylesheet" href="./shared/tool.css"/>
+<style>
+  :root {
+    --page: #ffffff;
+    --ink: #1d1d1f;
+    --soft: #6e6e73;
+    --faint: #86868b;
+    --card: #ffffff;
+    --serif-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", Georgia, serif;
+    --side: clamp(1.25rem, 4.5vw, 4rem);
+    --gap: 0.85rem;
+    --max: 1340px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--page);
+    color: var(--ink);
+  }
+
+  .tool-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+  }
+
+  .tool-bar {
+    padding: 0.85rem 0;
+    background: #fff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .wrap {
+    width: 100%;
+    max-width: var(--max);
+    margin: 0 auto;
+    padding-left: var(--side);
+    padding-right: var(--side);
+  }
+  .tool-bar .wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .tool-bar .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+  .tool-bar .brand img { width: 32px; height: 32px; border-radius: 8px; }
+  .tool-bar .brand h1 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+  .tool-bar .brand .brand-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+  }
+  .tool-bar .brand .acoli-mark {
+    font-size: 1.05rem;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+  }
+  .tool-bar .brand .acoli-mark em {
+    font-style: normal;
+    color: var(--accent);
+  }
+  .tool-bar .brand span { display: none; }
+
+  .stage {
+    flex: 1;
+    padding-top: 1.75rem;
+    padding-bottom: 3.5rem;
+    background: #fff;
+  }
+
+  .hero {
+    margin: 0 0 1.75rem;
+    max-width: 42rem;
+  }
+  .hero h2 {
+    margin: 0;
+    font-family: var(--serif-display);
+    font-size: clamp(2.2rem, 3.8vw, 2.9rem);
+    font-weight: 550;
+    letter-spacing: -0.04em;
+    line-height: 1.06;
+  }
+  .hero .desc {
+    margin: 0.5rem 0 0;
+    font-size: 1.02rem;
+    color: var(--soft);
+    line-height: 1.45;
+  }
+
+  .block + .block { margin-top: 2.15rem; }
+
+  .section-label {
+    margin: 0 0 0.85rem;
+    font-size: clamp(0.95rem, 1.5vw, 1.15rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-transform: none;
+    color: var(--ink);
+  }
+
+  .featured {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: var(--gap);
+  }
+
+  .proposed {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--gap);
+  }
+
+  .tool {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+    padding: 1.15rem 1.2rem 1.05rem;
+    background: var(--card);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 18px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 160ms ease, box-shadow 160ms ease;
+  }
+
+  .tool.live {
+    padding: 1.4rem 1.45rem 1.3rem;
+    border: 1.5px solid rgba(0, 0, 0, 0.14);
+    border-radius: 22px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
+  }
+  a.tool.live:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14), 0 4px 10px rgba(0, 0, 0, 0.06);
+    opacity: 1;
+  }
+
+  .tool-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.7rem;
+  }
+  .tool-title {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+  }
+  .tool.live .tool-title {
+    font-family: var(--serif-display);
+    font-size: clamp(1.4rem, 2.2vw, 1.75rem);
+    font-weight: 550;
+    letter-spacing: -0.035em;
+  }
+  .tool p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--soft);
+    line-height: 1.42;
+  }
+  .tool.live p { font-size: 0.94rem; max-width: 36rem; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+    padding: 0.26rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .tag.star { background: #1d1d1f; color: #fff; }
+  .tag.star svg { width: 10px; height: 10px; fill: currentColor; }
+  .tag.wip { background: rgba(212, 0, 45, 0.1); color: #a80024; }
+  .tag.proposed { background: rgba(0, 0, 0, 0.05); color: var(--faint); }
+
+  .tool-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    margin-top: auto;
+    padding-top: 0.85rem;
+  }
+  .tool-meta {
+    font-size: 0.74rem;
+    color: var(--faint);
+    font-weight: 550;
+  }
+  .tool-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.62rem 1.25rem;
+    border-radius: 999px;
+    background: #1d1d1f;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  a.tool:hover .tool-cta {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .tool.soft {
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 1.1rem 1.15rem 1.05rem;
+  }
+  .tool.soft .tool-title { font-size: 1.02rem; }
+  .tool.soft p { font-size: 0.88rem; }
+  .tool.soft .tool-foot { margin-top: 0.45rem; padding-top: 0.35rem; }
+
+  @media (max-width: 980px) {
+    .featured { grid-template-columns: 1fr 1fr; }
+    .proposed { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 620px) {
+    .featured,
+    .proposed { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="tool-shell">
+  <header class="tool-bar">
+    <div class="wrap">
+      <div class="brand">
+        <img src="https://avatars.githubusercontent.com/u/12659718?s=200&v=4" alt="ACoLi"/>
+        <div>
+          <div class="brand-line">
+            <span class="acoli-mark">ACo<em>Li</em></span>
+            <h1>Lab Hub</h1>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="stage wrap">
+    <section class="hero">
+      <h2>ACoLi tools</h2>
+      <p class="desc">A proposed ACoLi NLP toolkit: local apps for reading annotated corpora, exploring bilingual lexica, and growing the next tools around conversion, annotation, parallel text, and query.</p>
+      <p class="desc" style="margin-top:0.45rem;font-size:0.9rem;color:#86868b">Static GitHub Pages demo with baked sample data (no server).</p>
+    </section>
+
+    <section class="block">
+      <p class="section-label">Featured</p>
+      <div class="featured">
+        <a class="tool live" href="./sentence_reader/">
+          <div class="tool-top">
+            <h3 class="tool-title">Sentence Reader</h3>
+            <span class="tag star" title="Starred tool">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6l1.7 3.5 3.8.6-2.8 2.7.7 3.8L8 10.4l-3.4 1.8.7-3.8L2.5 5.7l3.8-.6L8 1.6z"/></svg>
+              Star
+            </span>
+          </div>
+          <p>Browse annotated historical and classical sentences from ACoLi corpora. Move through documents and tokens, turn morphology, constituency, and dependency layers on or off, and export what you see for teaching or further work.</p>
+          <div class="tool-foot">
+            <span class="tool-meta">Corpora · syntax · export</span>
+            <span class="tool-cta">Open</span>
+          </div>
+        </a>
+
+        <a class="tool live" href="./dict_graph_reader/">
+          <div class="tool-top">
+            <h3 class="tool-title">Dictionary</h3>
+            <span class="tag wip">Work in progress</span>
+          </div>
+          <p>Look up words across bilingual collections from the ACoLi Dictionary Graph. Find direct translations and indirect paths through shared languages, compare sources, and export entries with provenance.</p>
+          <div class="tool-foot">
+            <span class="tool-meta">Lexica · lookup · export</span>
+            <span class="tool-cta">Open</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <section class="block">
+      <p class="section-label">Proposed areas of work</p>
+      <div class="proposed">
+        <article class="tool soft">
+          <div class="tool-top">
+            <h3 class="tool-title">Format Kitchen</h3>
+            <span class="tag proposed">Proposed</span>
+          </div>
+          <p>Conversion tools that move annotation and corpus data from one format to another. Start from CoNLL, XML, or RDF, pick a target, and follow a clear recipe so students and researchers can interchange data without hand-writing transforms.</p>
+          <div class="tool-foot"><span class="tool-meta">Interop · conversion</span></div>
+        </article>
+
+        <article class="tool soft">
+          <div class="tool-top">
+            <h3 class="tool-title">Annotation tools</h3>
+            <span class="tag proposed">Proposed</span>
+          </div>
+          <p>A family of helpers for tagging, glossing, and scheme mapping. Edit morphological and syntactic layers, check tagsets against reference models, and keep annotation workflows transparent enough to teach and reuse.</p>
+          <div class="tool-foot"><span class="tool-meta">Tagging · glossing · schemes</span></div>
+        </article>
+
+        <article class="tool soft">
+          <div class="tool-top">
+            <h3 class="tool-title">Parallel corpora visualizer</h3>
+            <span class="tag proposed">Proposed</span>
+          </div>
+          <p>Aligned multilingual reading for parallel corpora. Compare verse or sentence units across languages side by side, follow alignment links, and optionally overlay lexicon hits while you read.</p>
+          <div class="tool-foot"><span class="tool-meta">Parallel text · alignment</span></div>
+        </article>
+
+        <article class="tool soft">
+          <div class="tool-top">
+            <h3 class="tool-title">SPARQL from human language</h3>
+            <span class="tag proposed">Proposed</span>
+          </div>
+          <p>Ask questions in ordinary language and turn them into SPARQL over linked linguistic data. Aimed at small hosted graphs so students can explore LLOD resources without writing query syntax first.</p>
+          <div class="tool-foot"><span class="tool-meta">Query · LLOD</span></div>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

@@ -443,3 +443,63 @@ select:focus, input:focus, textarea:focus {
 }
 
 .hidden { display: none !important; }
+
+/* Static GitHub Pages demo note (shared by tools) */
+.btn.demo-note-btn {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.btn.demo-note-btn:hover {
+  background: rgba(0, 0, 0, 0.07);
+  border-color: rgba(0, 0, 0, 0.18);
+}
+.demo-note-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.demo-note-backdrop.open { display: flex; }
+.demo-note-modal {
+  width: min(28rem, 100%);
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--line);
+  padding: 1.35rem 1.4rem 1.15rem;
+}
+.demo-note-modal .dn-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tertiary);
+}
+.demo-note-modal h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.2rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.demo-note-modal p {
+  margin: 0 0 0.7rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--secondary);
+}
+.demo-note-modal p:last-of-type { margin-bottom: 1.1rem; }
+.demo-note-modal .dn-actions {
+  display: flex;
+  justify-content: flex-end;
+}

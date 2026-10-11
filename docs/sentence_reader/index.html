@@ -876,11 +876,11 @@
   .d-arc .arc-hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
   .d-arc .arc-line { fill: none; stroke: #1d1d1f; stroke-width: 1.55; stroke-linecap: butt; stroke-linejoin: round; pointer-events: none; transition: stroke 0.12s ease, stroke-width 0.12s ease, opacity 0.12s ease; }
   .d-arc .arc-head { fill: #1d1d1f; stroke: none; pointer-events: none; transition: fill 0.12s ease, opacity 0.12s ease; }
-  .d-arc .arc-lab-bg { fill: #fff; stroke: #fff; stroke-width: 5; pointer-events: none; }
+  .d-arc .arc-lab-bg { fill: var(--stage); stroke: var(--stage); stroke-width: 5; pointer-events: none; }
   .d-arc.d-arc-label { pointer-events: none; }
   .d-arc .arc-lab {
     fill: #1d1d1f; font-weight: 700; pointer-events: none;
-    paint-order: stroke fill; stroke: #fff; stroke-width: 6px; stroke-linejoin: round;
+    paint-order: stroke fill; stroke: var(--stage); stroke-width: 6px; stroke-linejoin: round;
     transition: fill 0.12s ease, font-size 0.12s ease;
   }
   .d-arc.is-on .arc-line, .d-arc.is-hot .arc-line { stroke: #0071e3; stroke-width: 2.8; }
@@ -1610,7 +1610,7 @@
     border-top: 1px solid rgba(0,0,0,0.08);
     background: var(--stage);
     padding: 0.75rem 1.25rem 0.9rem;
-    box-shadow: 0 -8px 18px rgba(255,255,255,0.9);
+    box-shadow: 0 -8px 18px rgba(250,250,250,0.92);
     scrollbar-width: thin;
     scrollbar-color: rgba(0,0,0,0.22) transparent;
   }
@@ -2988,7 +2988,7 @@ function renderGoldParseTree(container, spacious) {
 
   const topExtra = spacious ? 10 : 6;
   const bottomExtra = spacious ? 10 : 8;
-  container.innerHTML = `<svg class="const-svg" width="${width}" height="${height + topExtra + bottomExtra}" viewBox="0 0 ${width} ${height + topExtra + bottomExtra}" xmlns="http://www.w3.org/2000/svg" style="font-family:${font};background:#fff"><g transform="translate(0,${topExtra})">${edges}${nodes}</g></svg>`;
+  container.innerHTML = `<svg class="const-svg" width="${width}" height="${height + topExtra + bottomExtra}" viewBox="0 0 ${width} ${height + topExtra + bottomExtra}" xmlns="http://www.w3.org/2000/svg" style="font-family:${font};background:transparent"><g transform="translate(0,${topExtra})">${edges}${nodes}</g></svg>`;
 
   container.querySelectorAll('.c-node, .c-tri').forEach(g => {
     g.onpointerenter = () => {
@@ -5082,7 +5082,7 @@ function renderDisplacy(container, spacious) {
     labelSvg += parts.label;
   });
 
-  container.innerHTML = `<svg class="dep-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="font-family:Arial,Helvetica,sans-serif;background:#fff">${shaftSvg}${labelSvg}${words}</svg>`;
+  container.innerHTML = `<svg class="dep-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="font-family:Arial,Helvetica,sans-serif;background:transparent">${shaftSvg}${labelSvg}${words}</svg>`;
   bindNodeInteraction(container, '.d-word');
   bindArcInteraction(container);
   paintDisplacyHighlight(container);
@@ -5293,7 +5293,7 @@ function renderHierarchyTree(container, spacious) {
 
   const topExtra = spacious ? 10 : 6;
   const bottomExtra = spacious ? 10 : 8;
-  container.innerHTML = `<svg class="const-svg" width="${width}" height="${height + topExtra + bottomExtra}" viewBox="0 0 ${width} ${height + topExtra + bottomExtra}" xmlns="http://www.w3.org/2000/svg" style="font-family:${font};background:#fff"><g transform="translate(0,${topExtra})">${edges}${nodes}</g></svg>`;
+  container.innerHTML = `<svg class="const-svg" width="${width}" height="${height + topExtra + bottomExtra}" viewBox="0 0 ${width} ${height + topExtra + bottomExtra}" xmlns="http://www.w3.org/2000/svg" style="font-family:${font};background:transparent"><g transform="translate(0,${topExtra})">${edges}${nodes}</g></svg>`;
 
   // Phrase hover lights the span; click toggles the head token (or sole leaf).
   container.querySelectorAll('.c-node, .c-tri').forEach(g => {

@@ -236,135 +236,224 @@
     }
 
     if (parts[0] === "bridges") {
-      var bq = (query.q || "").trim().toLowerCase();
+      var bqRaw = (query.q || "").trim();
+      var bq = bqRaw.toLowerCase();
       var via = (query.via || "en").toLowerCase();
-      var one = [];
-      var multi = [];
-      var forms = [];
-      if (bq) {
-        var pivots = {};
-        var seenOne = {};
-        function pushOne(label, path) {
-          var key = path
-            .map(function (n) {
-              return String(n.word || "").toLowerCase() + ":" + String(n.lang || "");
-            })
-            .join(">");
-          if (seenOne[key]) return;
-          seenOne[key] = 1;
-          one.push({ label: label, hops: 1, path: path });
-        }
-        Object.keys(bundle.rows).forEach(function (pid) {
-          bundle.rows[pid].forEach(function (row) {
-            var src = String(row.source_word || "");
-            var tgt = String(row.translation || "");
-            var sl = String(row.source_language || "").toLowerCase();
-            var tl = String(row.target_language || "").toLowerCase();
-            // Foreign/other -> English pivot
-            if (src.toLowerCase() === bq && tl === via) {
-              pushOne(src + " -> " + tgt, [
-                { word: src, lang: sl },
-                { word: tgt, lang: tl },
-              ]);
-              forms.push(tgt);
-              pivots[tgt.toLowerCase()] = tgt;
-            }
-            // English source -> other (query on English lemma)
-            if (src.toLowerCase() === bq && sl === via && tl !== via) {
-              pushOne(src + " -> " + tgt, [
-                { word: src, lang: sl },
-                { word: tgt, lang: tl },
-              ]);
-              forms.push(tgt);
-              pivots[bq] = src;
-            }
-            // English target of a foreign source (query is the English gloss)
-            if (tgt.toLowerCase() === bq && tl === via && sl !== via) {
-              pushOne(src + " -> " + tgt, [
-                { word: src, lang: sl },
-                { word: tgt, lang: tl },
-              ]);
-              forms.push(src);
-              pivots[bq] = tgt;
-            }
-            // Query is translation of an English source row
-            if (tgt.toLowerCase() === bq && sl === via) {
-              pushOne(tgt + " <- " + src, [
-                { word: tgt, lang: tl },
-                { word: src, lang: sl },
-              ]);
-              forms.push(src);
-              pivots[src.toLowerCase()] = src;
-            }
-          });
-        });
-        // Direct neighbor set (either side) — induced ends must be new.
-        var directEnds = {};
-        Object.keys(bundle.rows).forEach(function (pid) {
-          bundle.rows[pid].forEach(function (row) {
-            var src = String(row.source_word || "");
-            var tgt = String(row.translation || "");
-            if (src.toLowerCase() === bq) directEnds[tgt.toLowerCase()] = 1;
-            if (tgt.toLowerCase() === bq) directEnds[src.toLowerCase()] = 1;
-          });
-        });
-        directEnds[bq] = 1;
+      // Prefer server-baked, language-locked induced paths when available
+      if (bq && bundle.bridges_cache && bundle.bridges_cache[bq]) {
+        return jsonResponse(bundle.bridges_cache[bq]);
+      }
 
-        // 2-hop via English pivot among baked rows (skip self-pivots that only restate directs)
-        var seenMulti = {};
-        Object.keys(pivots)
-          .slice(0, 8)
-          .forEach(function (pk) {
-            var pivot = pivots[pk];
-            // Self-pivot (query is already English) does not create a true A→B→C bridge.
-            if (pk === bq) return;
-            Object.keys(bundle.rows).forEach(function (pid) {
-              bundle.rows[pid].forEach(function (row) {
-                var src = String(row.source_word || "");
-                var tgt = String(row.translation || "");
-                var sl = String(row.source_language || "").toLowerCase();
-                var tl = String(row.target_language || "").toLowerCase();
-                var end = null;
-                var endLang = null;
-                if (src.toLowerCase() === pk && tl !== via) {
-                  end = tgt;
-                  endLang = tl;
-                } else if (tgt.toLowerCase() === pk && sl !== via) {
-                  end = src;
-                  endLang = sl;
+      var langName = function (code) {
+        var langs = (bundle.dimensions && bundle.dimensions.languages) || [];
+        for (var i = 0; i < langs.length; i++) {
+          if (langs[i].code === code) return langs[i].name || code;
+        }
+        return code || "?";
+      };
+      var node = function (word, code, role) {
+        return {
+          word: word,
+          language: code,
+          language_name: langName(code),
+          role: role || "mid",
+        };
+      };
+
+      // Fallback: induce A→B→C… from baked rows (language-locked, no self-loops)
+      var paths = [];
+      var byHops = { "2": [], "3": [], "4": [] };
+      if (bq) {
+        function neighbors(word, lockLang) {
+          var w = String(word || "").toLowerCase();
+          var out = [];
+          var seen = {};
+          Object.keys(bundle.rows).forEach(function (pid) {
+            bundle.rows[pid].forEach(function (row) {
+              var src = String(row.source_word || "");
+              var tgt = String(row.translation || "");
+              var sl = String(row.source_language || "").toLowerCase();
+              var tl = String(row.target_language || "").toLowerCase();
+              var other = null;
+              var otherLang = null;
+              var selfLang = null;
+              if (lockLang) {
+                if (src.toLowerCase() === w && sl === lockLang) {
+                  other = tgt;
+                  otherLang = tl;
+                  selfLang = sl;
+                } else if (tgt.toLowerCase() === w && tl === lockLang) {
+                  other = src;
+                  otherLang = sl;
+                  selfLang = tl;
                 }
-                if (!end) return;
-                if (directEnds[String(end).toLowerCase()]) return;
-                var key = pk + ">" + String(end).toLowerCase() + ":" + endLang;
-                if (seenMulti[key]) return;
-                seenMulti[key] = 1;
-                multi.push({
-                  label: bq + " -> " + pivot + " -> " + end,
-                  hops: 2,
-                  path: [
-                    { word: bq, lang: "?" },
-                    { word: pivot, lang: via },
-                    { word: end, lang: endLang },
-                  ],
-                });
+              } else {
+                if (src.toLowerCase() === w) {
+                  other = tgt;
+                  otherLang = tl;
+                  selfLang = sl;
+                } else if (tgt.toLowerCase() === w) {
+                  other = src;
+                  otherLang = sl;
+                  selfLang = tl;
+                }
+              }
+              if (!other || !otherLang) return;
+              var ol = other.toLowerCase();
+              if (ol === w) return; // self-loop
+              var key = otherLang + ":" + ol;
+              if (seen[key]) return;
+              seen[key] = 1;
+              out.push({
+                word: other,
+                language: otherLang,
+                language_name: row.source_language === otherLang
+                  ? row.source_language_name
+                  : row.target_language_name || langName(otherLang),
+                self_language: selfLang,
+                entry: rowToSuggestion(
+                  row,
+                  w,
+                  src.toLowerCase() === w ? "source" : "target"
+                ),
+                collection: row.collection_title || row.collection,
+                collection_id: row.collection,
               });
             });
           });
+          return out;
+        }
+
+        var direct = neighbors(bq, null);
+        var startLang = via;
+        var votes = {};
+        direct.forEach(function (n) {
+          var sl = n.self_language || "";
+          if (sl) votes[sl] = (votes[sl] || 0) + 1;
+        });
+        var best = 0;
+        Object.keys(votes).forEach(function (k) {
+          if (votes[k] > best) {
+            best = votes[k];
+            startLang = k;
+          }
+        });
+        var directEnds = {};
+        direct.forEach(function (n) {
+          directEnds[String(n.word).toLowerCase()] = 1;
+          directEnds[n.language + ":" + String(n.word).toLowerCase()] = 1;
+        });
+        directEnds[bq] = 1;
+
+        var frontier = [];
+        var seedTips = {};
+        direct.slice(0, 14).forEach(function (n) {
+          var tipKey = n.language + ":" + String(n.word).toLowerCase();
+          if (seedTips[tipKey]) return;
+          seedTips[tipKey] = 1;
+          frontier.push({
+            nodes: [
+              node(bqRaw || bq, startLang, "start"),
+              node(n.word, n.language, "end"),
+            ],
+            seenNodes: {},
+            seenWords: {},
+            entry: n.entry,
+            collections: [n.collection],
+            collection_ids: [n.collection_id],
+          });
+          frontier[frontier.length - 1].seenNodes[startLang + ":" + bq] = 1;
+          frontier[frontier.length - 1].seenNodes[tipKey] = 1;
+          frontier[frontier.length - 1].seenWords[bq] = 1;
+          frontier[frontier.length - 1].seenWords[String(n.word).toLowerCase()] = 1;
+        });
+
+        var seenEnds = {};
+        var beam = 6;
+        for (var hops = 2; hops <= 4; hops++) {
+          var next = [];
+          frontier.slice(0, beam).forEach(function (prev) {
+            var tip = prev.nodes[prev.nodes.length - 1];
+            var tipW = tip.word;
+            var tipLang = tip.language;
+            if (!tipW || !tipLang) return;
+            neighbors(tipW, tipLang).forEach(function (n) {
+              var wl = String(n.word).toLowerCase();
+              var endKey = n.language + ":" + wl;
+              if (wl === String(tipW).toLowerCase()) return;
+              if (wl === bq) return;
+              if (prev.seenNodes[endKey] || prev.seenWords[wl]) return;
+              var nodes = prev.nodes.map(function (x, i) {
+                return Object.assign({}, x, {
+                  role: i === 0 ? "start" : "mid",
+                });
+              });
+              nodes.push(node(n.word, n.language, "end"));
+              var state = {
+                nodes: nodes,
+                seenNodes: Object.assign({}, prev.seenNodes),
+                seenWords: Object.assign({}, prev.seenWords),
+                entry: n.entry || prev.entry,
+                collections: prev.collections.concat([n.collection]).filter(Boolean),
+                collection_ids: prev.collection_ids
+                  .concat([n.collection_id])
+                  .filter(Boolean),
+              };
+              state.seenNodes[endKey] = 1;
+              state.seenWords[wl] = 1;
+              var isDirect = directEnds[wl] || directEnds[endKey];
+              if (!isDirect && !seenEnds[endKey] && (byHops[String(hops)] || []).length < 8) {
+                seenEnds[endKey] = 1;
+                var pathObj = {
+                  hops: hops,
+                  bridge_count: hops - 1,
+                  label: hops + " hops",
+                  path: nodes,
+                  end_word: n.word,
+                  end_language: n.language,
+                  end_language_name: n.language_name || langName(n.language),
+                  bridge_words: nodes.slice(1, -1).map(function (x) {
+                    return x.word;
+                  }),
+                  collections: state.collections.filter(function (c, i, a) {
+                    return a.indexOf(c) === i;
+                  }),
+                  collection_ids: state.collection_ids.filter(function (c, i, a) {
+                    return a.indexOf(c) === i;
+                  }),
+                  entry: state.entry,
+                };
+                byHops[String(hops)].push(pathObj);
+                paths.push(pathObj);
+              }
+              if (hops < 4 && next.length < beam * 2) next.push(state);
+            });
+          });
+          next.sort(function (a, b) {
+            var ae = a.nodes[a.nodes.length - 1].language === via ? 0 : 1;
+            var be = b.nodes[b.nodes.length - 1].language === via ? 0 : 1;
+            return ae - be;
+          });
+          frontier = next.slice(0, beam);
+          if (!frontier.length) break;
+        }
       }
-      one = one.slice(0, 12);
-      multi = multi.slice(0, 12);
-      // Induced pane shows 2+ hops; keep one-hop separately for API completeness.
+      var two = byHops["2"] || [];
+      var longer = (byHops["3"] || []).concat(byHops["4"] || []);
       return jsonResponse({
-        query: query.q || "",
+        query: bqRaw,
         via: via,
-        paths: multi.slice(),
-        by_hops: { "2": multi },
-        one_hop: one,
-        multi_hop: multi,
-        one_hop_count: one.length,
-        multi_hop_count: multi.length,
-        bridge_forms: forms.slice(0, 12),
-        hint: one.length || multi.length ? null : "No bridge paths in the static demo subset.",
+        via_name: langName(via),
+        paths: paths.slice(0, 24),
+        by_hops: byHops,
+        one_hop: two,
+        multi_hop: longer,
+        one_hop_count: two.length,
+        multi_hop_count: longer.length,
+        bridge_forms: [],
+        hint: paths.length
+          ? paths.length + " induced paths from the static demo lexicon."
+          : "No bridge paths in the static demo subset.",
       });
     }
 

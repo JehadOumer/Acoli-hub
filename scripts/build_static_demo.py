@@ -22,15 +22,19 @@ SIZE_CYCLE = [50, 60, 75, 80, 100, 120, 150, 90, 110, 70]
 
 # Open-friendly dictionary collections for public demo (plus NC muse with notice).
 DICT_COLLECTIONS = ("freedict", "apertium", "dbnary", "omw", "muse")
-ROWS_PER_PAIR = 400
-SCAN_PER_PAIR = 12000
-MAX_PAIRS = 12
+ROWS_PER_PAIR = 750
+SCAN_PER_PAIR = 24000
+MAX_PAIRS = 64
 # Prefer lemmas that demo both direct hits and induced bridges in the static UI.
 SEED_WORDS = {
-    "love", "haus", "baum", "hand", "house", "water", "amour", "tree", "book",
-    "man", "woman", "god", "king", "city", "day", "night", "good", "new", "old",
-    "amor", "liebe", "buch", "neu",
+    "love", "house", "water", "amour", "tree", "book", "hand", "man", "woman",
+    "day", "night", "good", "new", "old", "city", "king", "god", "dog", "sun",
+    "haus", "liebe", "wasser", "baum", "buch", "amor", "casa", "eau", "home",
 }
+# Queries that get server-computed induced paths baked in (correct language locks).
+DEMO_BRIDGE_QUERIES = (
+    "house", "water", "amour", "love", "haus", "tree", "casa", "liebe",
+)
 
 
 def _write_json(path: Path, obj) -> None:
@@ -144,29 +148,176 @@ def export_corpora(store: CorpusStore) -> dict:
 def export_dicts(store: DictStore) -> dict:
     dims = store.dimensions()
     cols = [c for c in store.collections() if c.get("id") in DICT_COLLECTIONS]
-    listed = store.list_pairs(browsable_only=True, limit=1000)
+    listed = store.list_pairs(browsable_only=True, limit=5000)
     pairs = [p for p in listed.get("pairs", []) if p.get("collection") in DICT_COLLECTIONS]
+    by_id = {p["id"]: p for p in pairs}
+
+    # Precompute real induced paths (language-locked) from the live store
+    bridges_cache: dict[str, dict] = {}
+    force_pair_ids: set[str] = set()
+    for q in DEMO_BRIDGE_QUERIES:
+        try:
+            payload = store.bridges(q, via="en", max_hops=4, limit=16)
+        except Exception as e:
+            print(f"  bridges skip {q}: {e}")
+            continue
+        # Drop heavy nested entry blobs; keep path annotations
+        slim_paths = []
+        for path in payload.get("paths") or []:
+            p = dict(path)
+            ent = p.get("entry")
+            if isinstance(ent, dict):
+                p["entry"] = {
+                    k: ent.get(k)
+                    for k in (
+                        "source_word",
+                        "translation",
+                        "pos",
+                        "synset_id",
+                        "pair_id",
+                        "pair_title",
+                        "collection",
+                        "collection_title",
+                        "source_language",
+                        "target_language",
+                        "source_language_name",
+                        "target_language_name",
+                        "query_side",
+                        "headword",
+                        "meaning",
+                        "reverse_pair_id",
+                    )
+                    if ent.get(k) is not None
+                }
+            for cid in p.get("collection_ids") or []:
+                pass
+            for node in p.get("path") or []:
+                # Ensure UI fields
+                if node.get("language") and not node.get("language_name"):
+                    node["language_name"] = node["language"]
+            slim_paths.append(p)
+            for cid in path.get("collection_ids") or []:
+                if cid:
+                    force_pair_ids.add(cid)
+            ent = path.get("entry") or {}
+            if ent.get("pair_id"):
+                force_pair_ids.add(ent["pair_id"])
+        by_hops: dict[str, list] = {}
+        for path in slim_paths:
+            by_hops.setdefault(str(path.get("hops") or 2), []).append(path)
+        bridges_cache[q.lower()] = {
+            "query": q,
+            "via": "en",
+            "via_name": "English",
+            "paths": slim_paths,
+            "by_hops": by_hops,
+            "one_hop": [p for p in slim_paths if (p.get("hops") or 0) == 2],
+            "multi_hop": [p for p in slim_paths if (p.get("hops") or 0) >= 3],
+            "one_hop_count": sum(1 for p in slim_paths if (p.get("hops") or 0) == 2),
+            "multi_hop_count": sum(1 for p in slim_paths if (p.get("hops") or 0) >= 3),
+            "bridge_forms": payload.get("bridge_forms") or [],
+            "direct_neighbor_count": payload.get("direct_neighbor_count") or 0,
+            "max_hops": 4,
+            "hint": payload.get("hint"),
+        }
+        print(
+            f"  bridges {q}: {len(slim_paths)} paths "
+            f"(2h={bridges_cache[q.lower()]['one_hop_count']} "
+            f"3+={bridges_cache[q.lower()]['multi_hop_count']})"
+        )
+
+    # Also pull pairs that hold seed lemmas (either side)
+    for seed in sorted(SEED_WORDS):
+        try:
+            nbrs = store._exact_neighbors(
+                seed,
+                language=None,
+                either_side=True,
+                limit=16,
+                pairs_cap=20,
+                scan_rows=8000,
+                prefer_via="en",
+            )
+        except Exception:
+            continue
+        for n in nbrs:
+            if n.get("pair_id"):
+                force_pair_ids.add(n["pair_id"])
 
     by_col: dict[str, list] = {}
     for p in pairs:
         by_col.setdefault(p["collection"], []).append(p)
 
-    chosen = []
-    per = max(1, MAX_PAIRS // max(1, len(by_col)))
-    for _col, plist in by_col.items():
-        def score(p):
-            langs = {p.get("source_language"), p.get("target_language")}
-            return (
-                0 if "en" in langs else 1,
-                0 if ({"de", "fr", "es", "it"} & langs) else 1,
-                p.get("id", ""),
-            )
+    # Prefer English-linked pairs + diversity of the other language
+    preferred_other = {
+        "de", "fr", "es", "it", "pt", "nl", "pl", "cs", "ru", "sv", "da", "fi",
+        "hu", "el", "tr", "ar", "he", "ja", "zh", "ko", "hi", "eu", "ca", "gl",
+        "ro", "bg", "uk", "sk", "sl", "hr", "sr", "ga", "cy", "is", "la",
+    }
 
-        chosen.extend(sorted(plist, key=score)[:per])
-    chosen = chosen[:MAX_PAIRS]
+    def score(p: dict) -> tuple:
+        langs = {p.get("source_language"), p.get("target_language")}
+        other = (langs - {"en"}) or langs
+        return (
+            0 if "en" in langs else 1,
+            0 if (other & preferred_other) else 1,
+            0 if p["id"] in force_pair_ids else 1,
+            p.get("bytes") or 0,
+            p.get("id", ""),
+        )
+
+    chosen_ids: list[str] = []
+    seen_ids: set[str] = set()
+
+    # Guarantee every open collection appears, then force/bridge pairs, then fill
+    per_col_floor = 4
+    for col in DICT_COLLECTIONS:
+        plist = by_col.get(col) or []
+        for p in sorted(plist, key=score)[:per_col_floor]:
+            if p["id"] not in seen_ids:
+                chosen_ids.append(p["id"])
+                seen_ids.add(p["id"])
+
+    for pid in sorted(force_pair_ids):
+        if pid in by_id and pid not in seen_ids and len(chosen_ids) < MAX_PAIRS:
+            chosen_ids.append(pid)
+            seen_ids.add(pid)
+
+    # Round-robin fill for more language coverage
+    per = max(4, MAX_PAIRS // max(1, len(by_col)))
+    for _col, plist in by_col.items():
+        for p in sorted(plist, key=score)[:per]:
+            if p["id"] not in seen_ids:
+                chosen_ids.append(p["id"])
+                seen_ids.add(p["id"])
+            if len(chosen_ids) >= MAX_PAIRS:
+                break
+        if len(chosen_ids) >= MAX_PAIRS:
+            break
+
+    if len(chosen_ids) < MAX_PAIRS:
+        have_langs = set()
+        for pid in chosen_ids:
+            p = by_id[pid]
+            have_langs.add(p.get("source_language"))
+            have_langs.add(p.get("target_language"))
+        for p in sorted(pairs, key=score):
+            if p["id"] in seen_ids:
+                continue
+            langs = {p.get("source_language"), p.get("target_language")}
+            if not (langs - have_langs):
+                continue
+            chosen_ids.append(p["id"])
+            seen_ids.add(p["id"])
+            have_langs |= langs
+            if len(chosen_ids) >= MAX_PAIRS:
+                break
+
+    chosen = [by_id[pid] for pid in chosen_ids if pid in by_id][:MAX_PAIRS]
 
     rows_by_pair = {}
     pair_infos = {}
+
     def pack_row(e, info, pid):
         return {
             "source_word": e.get("source_word") or "",
@@ -213,14 +364,12 @@ def export_dicts(store: DictStore) -> dict:
                 seeds.append(e)
             else:
                 rest.append(e)
-        # Spread sample across the file so demos are not stuck on letter "a".
         if len(rest) <= ROWS_PER_PAIR:
             picked = rest
         else:
             step = len(rest) / ROWS_PER_PAIR
             idxs = sorted({min(len(rest) - 1, int(j * step)) for j in range(ROWS_PER_PAIR)})
             picked = [rest[i] for i in idxs]
-        # Prefer seed hits first, then fill.
         merged = []
         seen = set()
         for e in seeds + picked:
@@ -238,40 +387,79 @@ def export_dicts(store: DictStore) -> dict:
 
     chosen = [p for p in chosen if p["id"] in rows_by_pair]
 
-    # Patch dimensions to demo scale
-    demo_dims = dict(dims)
-    demo_dims["pair_count"] = len(chosen)
-    demo_dims["browsable_pair_count"] = len(chosen)
-    demo_dims["open_pair_count"] = len(chosen)
-    demo_dims["browsable_collections"] = [c["id"] for c in cols]
-    demo_counts = {
-        cid: sum(1 for p in chosen if p.get("collection") == cid) for cid in DICT_COLLECTIONS
+    # Dimensions from what is actually baked (counts only)
+    open_langs: set[str] = set()
+    coll_counts: dict[str, int] = {}
+    coll_langs: dict[str, set[str]] = {}
+    for p in chosen:
+        cid = p["collection"]
+        coll_counts[cid] = coll_counts.get(cid, 0) + 1
+        for code in (p.get("source_language"), p.get("target_language")):
+            if not code:
+                continue
+            open_langs.add(code)
+            coll_langs.setdefault(cid, set()).add(code)
+
+    names = store.catalog.get("language_names", {})
+    demo_dims = {
+        "about": dims.get("about") or store.catalog.get("meta", {}),
+        "collection_counts": coll_counts,
+        "collection_language_counts": {
+            cid: len(codes) for cid, codes in coll_langs.items()
+        },
+        "open_source_count": len([c for c in cols if coll_counts.get(c["id"], 0)]),
+        "open_pair_count": len(chosen),
+        "open_language_count": len(open_langs),
+        "language_count": len(open_langs),
+        "languages": sorted(
+            [{"code": c, "name": names.get(c, c)} for c in open_langs],
+            key=lambda x: x["name"],
+        ),
+        "pair_count": len(chosen),
+        "browsable_pair_count": len(chosen),
+        "browsable_collections": [c["id"] for c in cols if coll_counts.get(c["id"], 0)],
+        "sources": [
+            {
+                "id": c["id"],
+                "title": c["title"],
+                "short": c.get("short", ""),
+                "license": c.get("license", ""),
+                "pair_count": coll_counts.get(c["id"], 0),
+                "language_count": len(coll_langs.get(c["id"], set())),
+                "browsable": True,
+            }
+            for c in cols
+            if coll_counts.get(c["id"], 0)
+        ],
     }
-    demo_dims["collection_counts"] = dict(demo_counts)
-    demo_dims["sources"] = [
-        s for s in (dims.get("sources") or []) if s.get("id") in DICT_COLLECTIONS
-    ]
-    for s in demo_dims["sources"]:
-        s["pair_count"] = demo_counts.get(s["id"], 0)
+
+    # Patch collection objects' indexed_pairs to demo scale
+    demo_cols = []
+    for c in cols:
+        cc = dict(c)
+        cc["indexed_pairs"] = coll_counts.get(c["id"], 0)
+        demo_cols.append(cc)
 
     bundle = {
         "dimensions": demo_dims,
         "collections": {
-            "collections": cols,
+            "collections": demo_cols,
             "capability_catalog": CAPABILITY_CATALOG,
             "meta": {"demo": True, "note": "Static subset for GitHub Pages"},
         },
         "pairs": {"pairs": chosen, "count": len(chosen)},
         "pair_info": pair_infos,
         "rows": rows_by_pair,
+        "bridges_cache": bridges_cache,
         "meta": {
             "pair_count": len(chosen),
             "row_total": sum(len(v) for v in rows_by_pair.values()),
-            "note": "Baked dictionary rows for offline suggest / bridges / export",
+            "language_count": len(open_langs),
+            "bridge_query_count": len(bridges_cache),
+            "note": "Baked dictionary rows + precomputed induced bridges for offline demo",
         },
     }
     _write_json(DOCS / "api" / "dicts" / "bundle.json", bundle)
-    # Also write thin endpoints for clarity
     _write_json(DOCS / "api" / "dicts" / "dimensions.json", demo_dims)
     _write_json(DOCS / "api" / "dicts" / "collections.json", bundle["collections"])
     _write_json(DOCS / "api" / "dicts" / "pairs.json", bundle["pairs"])

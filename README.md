@@ -7,7 +7,7 @@ All API responses are precomputed and baked under `docs/api/` so the site runs o
 
 - Hub: `docs/index.html`
 - Sentence Reader: `docs/sentence_reader/` (spread sample, ≥50 sentences per source when available, varied sizes)
-- Dictionary: `docs/dict_graph_reader/` (hundreds of bilingual rows across several pairs)
+- Dictionary: `docs/dict_graph_reader/` (~64 language pairs, ~46k bilingual rows, 36 languages across freedict/apertium/dbnary/omw/muse; precomputed induced bridges for house/water/amour/love/…)
 - Offline API shim: `docs/shared/static_api.js`
 
 ## License note

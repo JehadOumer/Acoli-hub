@@ -2397,7 +2397,7 @@ const MODE_DEFAULTS = {
   graph:  { pos: true,  tags: true,  lemma: false, deps: true,  ner: false },
 };
 const VIEW_PREFS_KEY = 'hsr_view_prefs';
-const SESSION_KEY = 'hsr_session_v1';
+const SESSION_KEY = 'hsr_session_demo_v2';
 function _readJsonStore(primary, fallbackKeys) {
   try {
     const raw = localStorage.getItem(primary) || sessionStorage.getItem(primary);
@@ -3477,9 +3477,12 @@ async function init() {
 
   renderSourcePicker();
   const sess = loadSession();
+  const demoDefault = 'iswoc_oe_apt'; // Old English — Apollonius (ISWOC)
   const startId = (sess.corpus && state.corpora.some(c => c.id === sess.corpus))
     ? sess.corpus
-    : (state.corpora[0] && state.corpora[0].id);
+    : (state.corpora.some(c => c.id === demoDefault)
+      ? demoDefault
+      : (state.corpora[0] && state.corpora[0].id));
   if (startId) await openCorpus(startId, { index: sess.index, mode: sess.mode });
   else openSourceSheet();
 }

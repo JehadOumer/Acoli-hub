@@ -25,9 +25,11 @@ DICT_COLLECTIONS = ("freedict", "apertium", "dbnary", "omw", "muse")
 ROWS_PER_PAIR = 400
 SCAN_PER_PAIR = 12000
 MAX_PAIRS = 12
+# Prefer lemmas that demo both direct hits and induced bridges in the static UI.
 SEED_WORDS = {
-    "house", "water", "amour", "love", "baum", "tree", "book", "man", "woman",
-    "god", "king", "city", "day", "night", "hand", "good", "new", "old",
+    "love", "haus", "baum", "hand", "house", "water", "amour", "tree", "book",
+    "man", "woman", "god", "king", "city", "day", "night", "good", "new", "old",
+    "amor", "liebe", "buch", "neu",
 }
 
 

@@ -235,6 +235,56 @@
     color: var(--faint);
     font-size: 0.95rem;
   }
+  .hint-demo {
+    margin-top: 1.35rem;
+    padding: 0.95rem 1.1rem 1.05rem;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 1.15rem;
+    background: rgba(255, 255, 255, 0.72);
+    text-align: center;
+  }
+  .hint-demo .hint-kicker {
+    display: block;
+    margin: 0 0 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .hint-demo .hint-words {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem;
+  }
+  .hint-demo .hint-words button,
+  .hint button.try-word {
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    background: #fff;
+    padding: 0.42rem 0.85rem;
+    font: inherit;
+    font-family: var(--serif-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    border-radius: 980px;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+  .hint-demo .hint-words button:hover,
+  .hint button.try-word:hover {
+    border-color: rgba(0, 0, 0, 0.28);
+    background: rgba(0, 0, 0, 0.03);
+  }
+  .hint-demo .hint-note {
+    display: block;
+    margin-top: 0.65rem;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: var(--faint);
+  }
   .hint button {
     border: 0;
     background: none;
@@ -1321,12 +1371,15 @@
             <div class="pos-chips" id="posChips"></div>
           </div>
 
-          <div class="hint" id="hint">
-            Try
-            <button type="button" data-q="house">house</button>,
-            <button type="button" data-q="water">water</button>,
-            <button type="button" data-q="amour">amour</button>
-            <span style="display:block;margin-top:0.35rem;font-size:0.72rem;color:var(--faint)">Left: direct A→B. Right: induced A→B→C… (new ends only, up to 4 hops). Blue tags = POS / synset.</span>
+          <div class="hint hint-demo" id="hint">
+            <span class="hint-kicker">Try these demo words</span>
+            <div class="hint-words">
+              <button type="button" class="try-word" data-q="haus" title="Direct hits and induced bridges">haus</button>
+              <button type="button" class="try-word" data-q="baum" title="Direct hits and induced bridges">baum</button>
+              <button type="button" class="try-word" data-q="liebe" title="Direct hits and induced bridges">liebe</button>
+              <button type="button" class="try-word" data-q="amor" title="Direct hits and induced bridges">amor</button>
+            </div>
+            <span class="hint-note">Each yields direct A→B hits and induced A→B→C… bridges in this static sample. Left pane = direct; right pane = induced (up to 4 hops). Blue tags = POS / synset.</span>
           </div>
         </div>
       </div>

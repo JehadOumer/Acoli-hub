@@ -242,84 +242,123 @@
       var multi = [];
       var forms = [];
       if (bq) {
+        var pivots = {};
+        var seenOne = {};
+        function pushOne(label, path) {
+          var key = path
+            .map(function (n) {
+              return String(n.word || "").toLowerCase() + ":" + String(n.lang || "");
+            })
+            .join(">");
+          if (seenOne[key]) return;
+          seenOne[key] = 1;
+          one.push({ label: label, hops: 1, path: path });
+        }
         Object.keys(bundle.rows).forEach(function (pid) {
           bundle.rows[pid].forEach(function (row) {
             var src = String(row.source_word || "");
             var tgt = String(row.translation || "");
             var sl = String(row.source_language || "").toLowerCase();
             var tl = String(row.target_language || "").toLowerCase();
+            // Foreign/other -> English pivot
             if (src.toLowerCase() === bq && tl === via) {
-              one.push({
-                label: src + " -> " + tgt,
-                path: [
-                  { word: src, lang: sl },
-                  { word: tgt, lang: tl },
-                ],
-              });
+              pushOne(src + " -> " + tgt, [
+                { word: src, lang: sl },
+                { word: tgt, lang: tl },
+              ]);
               forms.push(tgt);
-            } else if (tgt.toLowerCase() === bq && sl === via) {
-              one.push({
-                label: tgt + " <- " + src,
-                path: [
-                  { word: tgt, lang: tl },
-                  { word: src, lang: sl },
-                ],
-              });
+              pivots[tgt.toLowerCase()] = tgt;
+            }
+            // English source -> other (query on English lemma)
+            if (src.toLowerCase() === bq && sl === via && tl !== via) {
+              pushOne(src + " -> " + tgt, [
+                { word: src, lang: sl },
+                { word: tgt, lang: tl },
+              ]);
+              forms.push(tgt);
+              pivots[bq] = src;
+            }
+            // English target of a foreign source (query is the English gloss)
+            if (tgt.toLowerCase() === bq && tl === via && sl !== via) {
+              pushOne(src + " -> " + tgt, [
+                { word: src, lang: sl },
+                { word: tgt, lang: tl },
+              ]);
               forms.push(src);
+              pivots[bq] = tgt;
+            }
+            // Query is translation of an English source row
+            if (tgt.toLowerCase() === bq && sl === via) {
+              pushOne(tgt + " <- " + src, [
+                { word: tgt, lang: tl },
+                { word: src, lang: sl },
+              ]);
+              forms.push(src);
+              pivots[src.toLowerCase()] = src;
             }
           });
         });
-        // simple 2-hop via English pivot among baked rows
-        var pivots = {};
+        // Direct neighbor set (either side) — induced ends must be new.
+        var directEnds = {};
         Object.keys(bundle.rows).forEach(function (pid) {
           bundle.rows[pid].forEach(function (row) {
             var src = String(row.source_word || "");
             var tgt = String(row.translation || "");
-            var sl = String(row.source_language || "").toLowerCase();
-            var tl = String(row.target_language || "").toLowerCase();
-            if (src.toLowerCase() === bq && tl === via) pivots[tgt.toLowerCase()] = tgt;
-            if (tgt.toLowerCase() === bq && sl === via) pivots[src.toLowerCase()] = src;
+            if (src.toLowerCase() === bq) directEnds[tgt.toLowerCase()] = 1;
+            if (tgt.toLowerCase() === bq) directEnds[src.toLowerCase()] = 1;
           });
         });
-        Object.keys(pivots).slice(0, 8).forEach(function (pk) {
-          var pivot = pivots[pk];
-          Object.keys(bundle.rows).forEach(function (pid) {
-            bundle.rows[pid].forEach(function (row) {
-              var src = String(row.source_word || "");
-              var tgt = String(row.translation || "");
-              var sl = String(row.source_language || "").toLowerCase();
-              var tl = String(row.target_language || "").toLowerCase();
-              if (src.toLowerCase() === pk && tl !== via) {
+        directEnds[bq] = 1;
+
+        // 2-hop via English pivot among baked rows (skip self-pivots that only restate directs)
+        var seenMulti = {};
+        Object.keys(pivots)
+          .slice(0, 8)
+          .forEach(function (pk) {
+            var pivot = pivots[pk];
+            // Self-pivot (query is already English) does not create a true A→B→C bridge.
+            if (pk === bq) return;
+            Object.keys(bundle.rows).forEach(function (pid) {
+              bundle.rows[pid].forEach(function (row) {
+                var src = String(row.source_word || "");
+                var tgt = String(row.translation || "");
+                var sl = String(row.source_language || "").toLowerCase();
+                var tl = String(row.target_language || "").toLowerCase();
+                var end = null;
+                var endLang = null;
+                if (src.toLowerCase() === pk && tl !== via) {
+                  end = tgt;
+                  endLang = tl;
+                } else if (tgt.toLowerCase() === pk && sl !== via) {
+                  end = src;
+                  endLang = sl;
+                }
+                if (!end) return;
+                if (directEnds[String(end).toLowerCase()]) return;
+                var key = pk + ">" + String(end).toLowerCase() + ":" + endLang;
+                if (seenMulti[key]) return;
+                seenMulti[key] = 1;
                 multi.push({
-                  label: bq + " -> " + pivot + " -> " + tgt,
+                  label: bq + " -> " + pivot + " -> " + end,
+                  hops: 2,
                   path: [
                     { word: bq, lang: "?" },
                     { word: pivot, lang: via },
-                    { word: tgt, lang: tl },
+                    { word: end, lang: endLang },
                   ],
                 });
-              } else if (tgt.toLowerCase() === pk && sl !== via) {
-                multi.push({
-                  label: bq + " -> " + pivot + " -> " + src,
-                  path: [
-                    { word: bq, lang: "?" },
-                    { word: pivot, lang: via },
-                    { word: src, lang: sl },
-                  ],
-                });
-              }
+              });
             });
           });
-        });
       }
       one = one.slice(0, 12);
       multi = multi.slice(0, 12);
-      var paths = one.concat(multi);
+      // Induced pane shows 2+ hops; keep one-hop separately for API completeness.
       return jsonResponse({
         query: query.q || "",
         via: via,
-        paths: paths,
-        by_hops: { "1": one, "2": multi },
+        paths: multi.slice(),
+        by_hops: { "2": multi },
         one_hop: one,
         multi_hop: multi,
         one_hop_count: one.length,

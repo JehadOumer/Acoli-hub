@@ -3539,11 +3539,15 @@ function sourceOriginInfo(c) {
   };
 }
 
-/** Resource-level tags from catalog layers → M / E / Dn / Cn */
+/** Resource-level tags from catalog layers → M / E / Dn / Cn.
+ *  Must mirror live enrich_dependency_tiers so list chips match selection
+ *  (e.g. PROIEL → D2, not D1).
+ */
 function inferResourceSyntaxTags(c) {
   const L = c.layers || {};
   const st = (id) => L[id]?.status || 'none';
   const note = (id) => String(L[id]?.note || '');
+  const profile = String(c.profile || '').toLowerCase();
   const tags = c.syntax_tags || {};
   const m = typeof tags.morph === 'boolean'
     ? tags.morph
@@ -3551,13 +3555,21 @@ function inferResourceSyntaxTags(c) {
   const e = typeof tags.entities === 'boolean'
     ? tags.entities
     : (st('ner') === 'available' || st('ner') === 'partial');
+  // Prefer catalog when present, but correct known stamp bugs (PROIEL as D1).
   let d = tags.deps || null;
+  if (d === 'D1' && (profile === 'proiel' || /proiel/i.test(note('deps')))) {
+    d = 'D2';
+  }
   if (!d) {
     if (st('deps') === 'available' || c.has_dependencies) {
-      d = /map|remap|scheme|proiel.?ud/i.test(note('deps')) ? 'D2' : 'D1';
+      d = (profile === 'proiel' || /proiel|map|remap|scheme/i.test(note('deps')))
+        ? 'D2'
+        : 'D1';
     } else if (st('constituency') === 'available') {
-      d = 'D3'; // gold PARSE → deps can be induced
+      d = 'D3';
     } else if (st('deps') === 'partial' || st('deps') === 'clue') {
+      d = 'D4';
+    } else if (st('pos') === 'available' || st('pos') === 'partial' || m) {
       d = 'D4';
     } else {
       d = 'D5';
@@ -3566,7 +3578,7 @@ function inferResourceSyntaxTags(c) {
   let ct = tags.const || null;
   if (!ct) {
     if (st('constituency') === 'available') ct = 'C1';
-    else if (st('constituency') === 'projected') ct = 'C2';
+    else if (st('constituency') === 'projected' || d === 'D1' || d === 'D2') ct = 'C2';
     else ct = 'C3';
   }
   return { m, e, deps: d, const: ct };
@@ -4032,8 +4044,10 @@ async function refreshFilePage({ keepIndex = false } = {}) {
 }
 
 function renderFileList() {
+  // Always show resource-level chips in the sentence list so selecting a row
+  // does not flip M/E/Dn/Cn (per-sentence NER/deps variance is reflected in
+  // toggles / tree mode, not in the list letters).
   const resourceClues = cluesHtmlFromTags(inferResourceSyntaxTags(state.meta || {}));
-  const activeClues = featureCluesHtml(state.capabilities);
   const items = state.sentences || [];
   const pageNav = state.matchCount > FILE_PAGE
     ? `<div class="file-page">
@@ -4048,7 +4062,7 @@ function renderFileList() {
     <button type="button" class="file ${s.index===state.index?'active':''}" data-i="${s.index}">
       <span class="file-num">${String(s.index+1).padStart(2,'0')}</span>
       <span class="file-text">${esc(listPreviewText(s.text || s.label || 'Sentence'))}</span>
-      <span class="file-clues">${s.index === state.index ? activeClues : resourceClues}</span>
+      <span class="file-clues">${resourceClues}</span>
     </button>`).join('') || `<div class="file-page-note">No matches</div>`);
   $('fileList').querySelectorAll('.file').forEach(btn => {
     btn.onclick = () => { state.index = +btn.dataset.i; loadSentence(); };
